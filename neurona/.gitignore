@@ -1,0 +1,5 @@
+modelo_reseñas.keras
+modelo_reseñas.h5
+__pycache__/
+*.pyc
+.env

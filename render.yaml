@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: arroyoseco-api
+    runtime: dotnet
+    buildCommand: dotnet publish arroyoSeco/arroyoSeco.API.csproj -c Release -o out
+    startCommand: dotnet out/arroyoSeco.API.dll
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://0.0.0.0:$PORT
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
