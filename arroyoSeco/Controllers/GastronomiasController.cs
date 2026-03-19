@@ -107,6 +107,80 @@ public class GastronomiasController : ControllerBase
         return Ok(response);
     }
 
+    [AllowAnonymous]
+    [HttpGet("analytics")]
+    public async Task<ActionResult<GastronomiaAnalyticsDto>> GetAnalytics(CancellationToken ct)
+    {
+        var reviewsQuery = _db.Reviews.AsNoTracking();
+        var totalReviews = await reviewsQuery.CountAsync(ct);
+        var ratingPromedio = totalReviews > 0
+            ? await reviewsQuery.AverageAsync(r => (double)r.Puntuacion, ct)
+            : 0;
+
+        var distributionRaw = await reviewsQuery
+            .GroupBy(r => r.Puntuacion)
+            .Select(g => new { puntuacion = g.Key, total = g.Count() })
+            .ToListAsync(ct);
+
+        var distribution = Enumerable.Range(1, 5)
+            .Select(p => new RatingDistributionDto(
+                p,
+                distributionRaw.FirstOrDefault(x => x.puntuacion == p)?.total ?? 0
+            ))
+            .ToList();
+
+        var byEstablecimiento = await _db.Establecimientos
+            .Include(e => e.Reviews)
+            .AsNoTracking()
+            .Where(e => e.Reviews.Any())
+            .Select(e => new EstablecimientoReviewStatsDto(
+                e.Id,
+                e.Nombre,
+                e.Reviews.Average(r => (double)r.Puntuacion),
+                e.Reviews.Count
+            ))
+            .ToListAsync(ct);
+
+        var top5 = byEstablecimiento
+            .OrderByDescending(x => x.RatingPromedio)
+            .ThenByDescending(x => x.TotalReviews)
+            .Take(5)
+            .ToList();
+
+        var bottom5 = byEstablecimiento
+            .OrderBy(x => x.RatingPromedio)
+            .ThenByDescending(x => x.TotalReviews)
+            .Take(5)
+            .ToList();
+
+        var fromDate = DateTime.UtcNow.AddMonths(-5);
+        var trendRaw = await reviewsQuery
+            .Where(r => r.Fecha >= fromDate)
+            .GroupBy(r => new { r.Fecha.Year, r.Fecha.Month })
+            .Select(g => new
+            {
+                g.Key.Year,
+                g.Key.Month,
+                total = g.Count()
+            })
+            .ToListAsync(ct);
+
+        var trend = trendRaw
+            .OrderBy(x => x.Year)
+            .ThenBy(x => x.Month)
+            .Select(x => new ReviewsTrendPointDto($"{x.Year}-{x.Month:D2}", x.total))
+            .ToList();
+
+        return Ok(new GastronomiaAnalyticsDto(
+            totalReviews,
+            ratingPromedio,
+            distribution,
+            top5,
+            bottom5,
+            trend
+        ));
+    }
+
     private async Task<List<(EstablecimientoEntity est, int clase, double confidence, string fuente)>> BuildRankingAsync(CancellationToken ct)
     {
         var establecimientos = await _db.Establecimientos
@@ -352,4 +426,30 @@ public record GastronomiaRankingDto(
     string AiFuente,
     double RatingPromedio,
     int TotalReviews
+);
+
+public record RatingDistributionDto(
+    int Puntuacion,
+    int Total
+);
+
+public record EstablecimientoReviewStatsDto(
+    int EstablecimientoId,
+    string Nombre,
+    double RatingPromedio,
+    int TotalReviews
+);
+
+public record ReviewsTrendPointDto(
+    string Periodo,
+    int TotalReviews
+);
+
+public record GastronomiaAnalyticsDto(
+    int TotalReviews,
+    double RatingPromedio,
+    List<RatingDistributionDto> Distribucion,
+    List<EstablecimientoReviewStatsDto> Top5,
+    List<EstablecimientoReviewStatsDto> Bottom5,
+    List<ReviewsTrendPointDto> TendenciaMensual
 );

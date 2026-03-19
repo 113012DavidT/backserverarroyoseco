@@ -28,15 +28,26 @@ public class AuthController : ControllerBase
         _db = db;
     }
 
-    public record RegisterDto(string Email, string Password, string? Role, int? TipoOferente);
+    public record RegisterDto(string Email, string Password, string Direccion, string Sexo, string? Role, int? TipoOferente);
     public record LoginDto(string Email, string Password);
     public record CambiarPasswordDto(string PasswordActual, string PasswordNueva);
+    public record UpdatePerfilDto(string Direccion, string Sexo);
 
     [AllowAnonymous]
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterDto dto)
     {
-        var user = new ApplicationUser { UserName = dto.Email, Email = dto.Email, EmailConfirmed = true };
+        if (string.IsNullOrWhiteSpace(dto.Direccion) || string.IsNullOrWhiteSpace(dto.Sexo))
+            return BadRequest(new { message = "Direccion y sexo son obligatorios" });
+
+        var user = new ApplicationUser
+        {
+            UserName = dto.Email,
+            Email = dto.Email,
+            EmailConfirmed = true,
+            Direccion = dto.Direccion.Trim(),
+            Sexo = dto.Sexo.Trim()
+        };
         var result = await _userManager.CreateAsync(user, dto.Password);
         if (!result.Succeeded) return BadRequest(result.Errors);
 
@@ -77,6 +88,16 @@ public class AuthController : ControllerBase
         var result = await _signInManager.CheckPasswordSignInAsync(user, dto.Password, lockoutOnFailure: false);
         if (!result.Succeeded) return Unauthorized();
 
+        if (!user.PerfilBasicoCompleto)
+        {
+            return StatusCode(StatusCodes.Status428PreconditionRequired, new
+            {
+                message = "Completa tu perfil para continuar",
+                requiereCompletarPerfil = true,
+                perfilCompleto = false
+            });
+        }
+
         // Actualizar FechaPrimerLogin si es la primera vez
         if (!user.FechaPrimerLogin.HasValue)
         {
@@ -96,7 +117,41 @@ public class AuthController : ControllerBase
         var user = await _userManager.GetUserAsync(User);
         if (user is null) return Unauthorized();
         var roles = await _userManager.GetRolesAsync(user);
-        return Ok(new { id = user.Id, email = user.Email, roles });
+        return Ok(new
+        {
+            id = user.Id,
+            email = user.Email,
+            direccion = user.Direccion,
+            sexo = user.Sexo,
+            perfilCompleto = user.PerfilBasicoCompleto,
+            roles
+        });
+    }
+
+    [Authorize]
+    [HttpPut("perfil")]
+    public async Task<IActionResult> UpdatePerfil([FromBody] UpdatePerfilDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Direccion) || string.IsNullOrWhiteSpace(dto.Sexo))
+            return BadRequest(new { message = "Direccion y sexo son obligatorios" });
+
+        var user = await _userManager.GetUserAsync(User);
+        if (user is null) return Unauthorized();
+
+        user.Direccion = dto.Direccion.Trim();
+        user.Sexo = dto.Sexo.Trim();
+
+        var result = await _userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+            return BadRequest(result.Errors);
+
+        return Ok(new
+        {
+            message = "Perfil actualizado",
+            direccion = user.Direccion,
+            sexo = user.Sexo,
+            perfilCompleto = user.PerfilBasicoCompleto
+        });
     }
 
     [Authorize]
