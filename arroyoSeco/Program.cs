@@ -63,21 +63,23 @@ builder.Services.Configure<FormOptions>(o =>
 });
 
 const string CorsPolicy = "FrontendPolicy";
+var allowedOrigins = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "http://34.58.123.99:4200",
+    "https://34.58.123.99:4200",
+    "http://localhost:4200",
+    "https://localhost:4200",
+    "http://127.0.0.1:4200",
+    "https://127.0.0.1:4200",
+    "https://arroyosecoservices.vercel.app"
+};
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(CorsPolicy, policy =>
     {
         policy
-            .SetIsOriginAllowed(origin =>
-            {
-                return origin == "http://34.58.123.99:4200"
-                    || origin == "https://34.58.123.99:4200"
-                    || origin == "http://localhost:4200"
-                    || origin == "https://localhost:4200"
-                    || origin == "http://127.0.0.1:4200"
-                    || origin == "https://127.0.0.1:4200"
-                    || origin == "https://arroyosecoservices.vercel.app";
-            })
+            .SetIsOriginAllowed(origin => allowedOrigins.Contains(origin))
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials()
@@ -229,6 +231,30 @@ builder.Services.PostConfigure<EmailOptions>(o =>
 });
 
 var app = builder.Build();
+
+// Defensive CORS middleware: ensures 401/500 responses keep CORS headers for allowed origins.
+app.Use(async (ctx, next) =>
+{
+    var origin = ctx.Request.Headers.Origin.ToString();
+    var isAllowed = !string.IsNullOrWhiteSpace(origin) && allowedOrigins.Contains(origin);
+
+    if (isAllowed)
+    {
+        ctx.Response.Headers["Access-Control-Allow-Origin"] = origin;
+        ctx.Response.Headers["Vary"] = "Origin";
+        ctx.Response.Headers["Access-Control-Allow-Credentials"] = "true";
+        ctx.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization";
+        ctx.Response.Headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,PATCH,OPTIONS";
+    }
+
+    if (HttpMethods.IsOptions(ctx.Request.Method) && isAllowed)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status204NoContent;
+        return;
+    }
+
+    await next();
+});
 
 // Middleware global de errores
 app.Use(async (ctx, next) =>
