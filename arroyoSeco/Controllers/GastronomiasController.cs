@@ -170,13 +170,13 @@ public class GastronomiasController : ControllerBase
             .ToListAsync(ct);
 
         var top5 = byEstablecimiento
-            .OrderByDescending(x => x.RatingPromedio)
+            .OrderByDescending(x => x.Promedio)
             .ThenByDescending(x => x.TotalReviews)
             .Take(5)
             .ToList();
 
         var bottom5 = byEstablecimiento
-            .OrderBy(x => x.RatingPromedio)
+            .OrderBy(x => x.Promedio)
             .ThenByDescending(x => x.TotalReviews)
             .Take(5)
             .ToList();
@@ -468,19 +468,19 @@ public record RatingDistributionDto(
 public record EstablecimientoReviewStatsDto(
     int EstablecimientoId,
     string Nombre,
-    double RatingPromedio,
+    double Promedio,
     int TotalReviews
 );
 
 public record ReviewsTrendPointDto(
-    string Periodo,
-    int TotalReviews
+    string Etiqueta,
+    int Valor
 );
 
 public record GastronomiaAnalyticsDto(
-    int TotalReviews,
-    double RatingPromedio,
-    List<RatingDistributionDto> Distribucion,
+    int TotalResenas,
+    double Promedio,
+    List<RatingDistributionDto> DistribucionEstrellas,
     List<EstablecimientoReviewStatsDto> Top5,
     List<EstablecimientoReviewStatsDto> Bottom5,
     List<ReviewsTrendPointDto> TendenciaMensual
