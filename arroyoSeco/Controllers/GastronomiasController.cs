@@ -11,6 +11,8 @@ namespace arroyoSeco.Controllers;
 [Route("api/[controller]")]
 public class GastronomiasController : ControllerBase
 {
+    private const string NeuronaBaseUrl = "http://34.51.58.191:5000";
+
     private readonly IAppDbContext _db;
     private readonly CrearEstablecimientoCommandHandler _crear;
     private readonly CrearMenuCommandHandler _crearMenu;
@@ -86,6 +88,26 @@ public class GastronomiasController : ControllerBase
     [AllowAnonymous]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<EstablecimientoEntity>>> List(CancellationToken ct)
+        => Ok((await BuildRankingAsync(ct)).Select(x => x.est).ToList());
+
+    [AllowAnonymous]
+    [HttpGet("ranking")]
+    public async Task<ActionResult<IEnumerable<GastronomiaRankingDto>>> ListRanking(CancellationToken ct)
+    {
+        var ranked = await BuildRankingAsync(ct);
+        var response = ranked.Select(x => new GastronomiaRankingDto(
+            x.est,
+            x.clase,
+            x.confidence,
+            x.fuente,
+            x.est.Reviews.Count > 0 ? x.est.Reviews.Average(r => r.Puntuacion) : 0,
+            x.est.Reviews.Count
+        )).ToList();
+
+        return Ok(response);
+    }
+
+    private async Task<List<(EstablecimientoEntity est, int clase, double confidence, string fuente)>> BuildRankingAsync(CancellationToken ct)
     {
         var establecimientos = await _db.Establecimientos
             .Include(e => e.Menus)
@@ -94,15 +116,25 @@ public class GastronomiasController : ControllerBase
             .AsNoTracking()
             .ToListAsync(ct);
 
-        // Build batch input for ML API: average puntuacion + latest comment per establishment
-        var mlInput = establecimientos.Select(e =>
+        var mlInput = establecimientos.Select(est =>
         {
-            var avgPuntuacion = e.Reviews.Count > 0 ? e.Reviews.Average(r => r.Puntuacion) : 3.0;
-            var lastComentario = e.Reviews.Count > 0
-                ? e.Reviews.OrderByDescending(r => r.Fecha).First().Comentario
+            var avgPuntuacion = est.Reviews.Count > 0 ? est.Reviews.Average(r => r.Puntuacion) : 3.0;
+            var lastComentario = est.Reviews.Count > 0
+                ? est.Reviews.OrderByDescending(r => r.Fecha).First().Comentario
                 : "sin reseñas";
             return new { puntuacion = avgPuntuacion, comentario = lastComentario };
         }).ToList();
+
+        var fallback = establecimientos
+            .Select(est =>
+            {
+                var avg = est.Reviews.Count > 0 ? est.Reviews.Average(r => r.Puntuacion) : 0;
+                var clase = avg >= 4.0 ? 2 : (avg >= 2.5 ? 1 : 0);
+                return (est, clase, confidence: avg / 5.0, fuente: "fallback");
+            })
+            .OrderByDescending(x => x.clase)
+            .ThenByDescending(x => x.confidence)
+            .ToList();
 
         try
         {
@@ -111,7 +143,7 @@ public class GastronomiasController : ControllerBase
             var content = new System.Net.Http.StringContent(
                 System.Text.Json.JsonSerializer.Serialize(mlInput),
                 System.Text.Encoding.UTF8, "application/json");
-            var response = await http.PostAsync("http://34.51.58.191:5000/score-batch", content, ct);
+            var response = await http.PostAsync($"{NeuronaBaseUrl}/score-batch", content, ct);
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync(ct);
@@ -122,23 +154,22 @@ public class GastronomiasController : ControllerBase
                         confidence: el.GetProperty("confidence").GetDouble()
                     )).ToList();
 
-                establecimientos = establecimientos
-                    .Zip(scores, (e, s) => (est: e, s.clase, s.confidence))
+                if (scores.Count == establecimientos.Count)
+                {
+                    return establecimientos
+                    .Zip(scores, (e, s) => (est: e, s.clase, s.confidence, fuente: "ml"))
                     .OrderByDescending(x => x.clase)
                     .ThenByDescending(x => x.confidence)
-                    .Select(x => x.est)
                     .ToList();
+                }
             }
         }
         catch
         {
-            // ML API no disponible, devolver en orden por promedio de reseñas
-            establecimientos = establecimientos
-                .OrderByDescending(e => e.Reviews.Count > 0 ? e.Reviews.Average(r => r.Puntuacion) : 0)
-                .ToList();
+            // Flask no disponible, usar fallback local
         }
 
-        return Ok(establecimientos);
+        return fallback;
     }
 
     [Authorize(Roles = "Oferente")]
@@ -312,4 +343,13 @@ public record UpdateEstablecimientoRequest(
     string? Direccion,
     string? Descripcion,
     string? FotoPrincipal
+);
+
+public record GastronomiaRankingDto(
+    EstablecimientoEntity Establecimiento,
+    int AiClase,
+    double AiConfidence,
+    string AiFuente,
+    double RatingPromedio,
+    int TotalReviews
 );
