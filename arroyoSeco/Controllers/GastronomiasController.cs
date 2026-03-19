@@ -43,6 +43,15 @@ public class GastronomiasController : ControllerBase
     [HttpPost("{id:int}/reviews")]
     public async Task<ActionResult<int>> CrearReview(int id, [FromBody] CrearReviewCommand cmd, CancellationToken ct)
     {
+        if (cmd.Puntuacion < 1 || cmd.Puntuacion > 5)
+            return BadRequest(new { message = "puntuacion debe estar entre 1 y 5" });
+        if (string.IsNullOrWhiteSpace(cmd.Comentario))
+            return BadRequest(new { message = "comentario es obligatorio" });
+
+        var exists = await _db.Establecimientos.AnyAsync(e => e.Id == id, ct);
+        if (!exists)
+            return NotFound(new { message = "Establecimiento no encontrado" });
+
         cmd.EstablecimientoId = id;
         cmd.UsuarioId = _current.UserId;
 
@@ -96,22 +105,38 @@ public class GastronomiasController : ControllerBase
     {
         var ranked = await BuildRankingAsync(ct);
         var response = ranked.Select(x => new GastronomiaRankingDto(
-            x.est,
+            x.est.Id,
+            x.est.Nombre,
+            x.est.Ubicacion,
+            x.est.Descripcion,
+            x.est.FotoPrincipal,
             x.clase,
             x.confidence,
             x.fuente,
             x.est.Reviews.Count > 0 ? x.est.Reviews.Average(r => r.Puntuacion) : 0,
-            x.est.Reviews.Count
+            x.est.Reviews.Count,
+            x.est
         )).ToList();
 
         return Ok(response);
     }
 
-    [AllowAnonymous]
+    [Authorize(Roles = "Oferente")]
     [HttpGet("analytics")]
     public async Task<ActionResult<GastronomiaAnalyticsDto>> GetAnalytics(CancellationToken ct)
     {
-        var reviewsQuery = _db.Reviews.AsNoTracking();
+        if (string.IsNullOrWhiteSpace(_current.UserId))
+            return Unauthorized();
+
+        var establecimientoIds = _db.Establecimientos
+            .AsNoTracking()
+            .Where(e => e.OferenteId == _current.UserId)
+            .Select(e => e.Id);
+
+        var reviewsQuery = _db.Reviews
+            .AsNoTracking()
+            .Where(r => establecimientoIds.Contains(r.EstablecimientoId));
+
         var totalReviews = await reviewsQuery.CountAsync(ct);
         var ratingPromedio = totalReviews > 0
             ? await reviewsQuery.AverageAsync(r => (double)r.Puntuacion, ct)
@@ -124,7 +149,7 @@ public class GastronomiasController : ControllerBase
 
         var distribution = Enumerable.Range(1, 5)
             .Select(p => new RatingDistributionDto(
-                p,
+                $"{p} estrella{(p == 1 ? string.Empty : "s")}",
                 distributionRaw.FirstOrDefault(x => x.puntuacion == p)?.total ?? 0
             ))
             .ToList();
@@ -132,7 +157,7 @@ public class GastronomiasController : ControllerBase
         var byEstablecimiento = await _db.Establecimientos
             .Include(e => e.Reviews)
             .AsNoTracking()
-            .Where(e => e.Reviews.Any())
+            .Where(e => e.OferenteId == _current.UserId && e.Reviews.Any())
             .Select(e => new EstablecimientoReviewStatsDto(
                 e.Id,
                 e.Nombre,
@@ -420,17 +445,22 @@ public record UpdateEstablecimientoRequest(
 );
 
 public record GastronomiaRankingDto(
-    EstablecimientoEntity Establecimiento,
+    int Id,
+    string Nombre,
+    string Ubicacion,
+    string? Descripcion,
+    string? FotoPrincipal,
     int AiClase,
     double AiConfidence,
     string AiFuente,
     double RatingPromedio,
-    int TotalReviews
+    int TotalReviews,
+    EstablecimientoEntity Establecimiento
 );
 
 public record RatingDistributionDto(
-    int Puntuacion,
-    int Total
+    string Etiqueta,
+    int Valor
 );
 
 public record EstablecimientoReviewStatsDto(

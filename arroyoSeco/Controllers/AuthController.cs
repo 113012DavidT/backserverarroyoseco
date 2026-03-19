@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using arroyoSeco.Application.Common.Interfaces;
 using arroyoSeco.Domain.Entities.Usuarios;
@@ -11,6 +12,14 @@ namespace arroyoSeco.Controllers;
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
+    private static readonly HashSet<string> SexosPermitidos = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Masculino",
+        "Femenino",
+        "Otro",
+        "Prefiero no decir"
+    };
+
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IJwtTokenGenerator _token;
@@ -39,6 +48,8 @@ public class AuthController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(dto.Direccion) || string.IsNullOrWhiteSpace(dto.Sexo))
             return BadRequest(new { message = "Direccion y sexo son obligatorios" });
+        if (!SexosPermitidos.Contains(dto.Sexo.Trim()))
+            return BadRequest(new { message = "Sexo invalido. Opciones: Masculino, Femenino, Otro, Prefiero no decir" });
 
         var user = new ApplicationUser
         {
@@ -88,13 +99,28 @@ public class AuthController : ControllerBase
         var result = await _signInManager.CheckPasswordSignInAsync(user, dto.Password, lockoutOnFailure: false);
         if (!result.Succeeded) return Unauthorized();
 
+        var roles = await _userManager.GetRolesAsync(user);
+        int? tipoOferente = null;
+        if (roles.Contains("Oferente"))
+        {
+            var oferente = await _db.Oferentes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(o => o.Id == user.Id);
+            if (oferente != null)
+                tipoOferente = (int)oferente.Tipo;
+        }
+
+        var jwt = _token.Generate(user.Id, user.Email!, roles, user.RequiereCambioPassword);
+
         if (!user.PerfilBasicoCompleto)
         {
             return StatusCode(StatusCodes.Status428PreconditionRequired, new
             {
                 message = "Completa tu perfil para continuar",
                 requiereCompletarPerfil = true,
-                perfilCompleto = false
+                perfilCompleto = false,
+                token = jwt,
+                tipoOferente
             });
         }
 
@@ -105,9 +131,12 @@ public class AuthController : ControllerBase
             await _userManager.UpdateAsync(user);
         }
 
-        var roles = await _userManager.GetRolesAsync(user);
-        var jwt = _token.Generate(user.Id, user.Email!, roles, user.RequiereCambioPassword);
-        return Ok(new { token = jwt });
+        return Ok(new
+        {
+            token = jwt,
+            tipoOferente,
+            perfilCompleto = true
+        });
     }
 
     [Authorize]
@@ -117,6 +146,16 @@ public class AuthController : ControllerBase
         var user = await _userManager.GetUserAsync(User);
         if (user is null) return Unauthorized();
         var roles = await _userManager.GetRolesAsync(user);
+        int? tipoOferente = null;
+        if (roles.Contains("Oferente"))
+        {
+            var oferente = await _db.Oferentes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(o => o.Id == user.Id);
+            if (oferente != null)
+                tipoOferente = (int)oferente.Tipo;
+        }
+
         return Ok(new
         {
             id = user.Id,
@@ -124,6 +163,7 @@ public class AuthController : ControllerBase
             direccion = user.Direccion,
             sexo = user.Sexo,
             perfilCompleto = user.PerfilBasicoCompleto,
+            tipoOferente,
             roles
         });
     }
@@ -134,6 +174,8 @@ public class AuthController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(dto.Direccion) || string.IsNullOrWhiteSpace(dto.Sexo))
             return BadRequest(new { message = "Direccion y sexo son obligatorios" });
+        if (!SexosPermitidos.Contains(dto.Sexo.Trim()))
+            return BadRequest(new { message = "Sexo invalido. Opciones: Masculino, Femenino, Otro, Prefiero no decir" });
 
         var user = await _userManager.GetUserAsync(User);
         if (user is null) return Unauthorized();
