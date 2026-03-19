@@ -63,26 +63,14 @@ builder.Services.Configure<FormOptions>(o =>
 });
 
 const string CorsPolicy = "FrontendPolicy";
-var allowedOrigins = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-{
-    "http://34.58.123.99:4200",
-    "https://34.58.123.99:4200",
-    "http://localhost:4200",
-    "https://localhost:4200",
-    "http://127.0.0.1:4200",
-    "https://127.0.0.1:4200",
-    "https://arroyosecoservices.vercel.app"
-};
-
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(CorsPolicy, policy =>
     {
         policy
-            .SetIsOriginAllowed(origin => allowedOrigins.Contains(origin))
+            .SetIsOriginAllowed(_ => true)
             .AllowAnyHeader()
             .AllowAnyMethod()
-            .AllowCredentials()
             .WithExposedHeaders("Content-Disposition")
             .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
     });
@@ -236,18 +224,21 @@ var app = builder.Build();
 app.Use(async (ctx, next) =>
 {
     var origin = ctx.Request.Headers.Origin.ToString();
-    var isAllowed = !string.IsNullOrWhiteSpace(origin) && allowedOrigins.Contains(origin);
 
-    if (isAllowed)
+    if (!string.IsNullOrWhiteSpace(origin))
     {
         ctx.Response.Headers["Access-Control-Allow-Origin"] = origin;
         ctx.Response.Headers["Vary"] = "Origin";
-        ctx.Response.Headers["Access-Control-Allow-Credentials"] = "true";
-        ctx.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization";
-        ctx.Response.Headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,PATCH,OPTIONS";
+    }
+    else
+    {
+        ctx.Response.Headers["Access-Control-Allow-Origin"] = "*";
     }
 
-    if (HttpMethods.IsOptions(ctx.Request.Method) && isAllowed)
+    ctx.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization";
+    ctx.Response.Headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,PATCH,OPTIONS";
+
+    if (HttpMethods.IsOptions(ctx.Request.Method))
     {
         ctx.Response.StatusCode = StatusCodes.Status204NoContent;
         return;
