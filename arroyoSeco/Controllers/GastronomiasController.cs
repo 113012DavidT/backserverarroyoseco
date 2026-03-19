@@ -97,7 +97,11 @@ public class GastronomiasController : ControllerBase
     [AllowAnonymous]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<EstablecimientoEntity>>> List(CancellationToken ct)
-        => Ok((await BuildRankingAsync(ct)).Select(x => x.est).ToList());
+        => Ok(await _db.Establecimientos
+            .Include(e => e.Menus)
+            .Include(e => e.Mesas)
+            .AsNoTracking()
+            .ToListAsync(ct));
 
     [AllowAnonymous]
     [HttpGet("ranking")]
@@ -114,8 +118,7 @@ public class GastronomiasController : ControllerBase
             x.confidence,
             x.fuente,
             x.est.Reviews.Count > 0 ? x.est.Reviews.Average(r => r.Puntuacion) : 0,
-            x.est.Reviews.Count,
-            x.est
+            x.est.Reviews.Count
         )).ToList();
 
         return Ok(response);
@@ -454,8 +457,7 @@ public record GastronomiaRankingDto(
     double AiConfidence,
     string AiFuente,
     double RatingPromedio,
-    int TotalReviews,
-    EstablecimientoEntity Establecimiento
+    int TotalReviews
 );
 
 public record RatingDistributionDto(
