@@ -68,12 +68,16 @@ builder.Services.AddCors(options =>
     options.AddPolicy(CorsPolicy, policy =>
     {
         policy
-            .WithOrigins(
-                "http://34.58.123.99:4200",
-                "http://localhost:4200",
-                "http://127.0.0.1:4200",
-                "https://arroyosecoservices.vercel.app"
-            )
+            .SetIsOriginAllowed(origin =>
+            {
+                return origin == "http://34.58.123.99:4200"
+                    || origin == "https://34.58.123.99:4200"
+                    || origin == "http://localhost:4200"
+                    || origin == "https://localhost:4200"
+                    || origin == "http://127.0.0.1:4200"
+                    || origin == "https://127.0.0.1:4200"
+                    || origin == "https://arroyosecoservices.vercel.app";
+            })
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials()
