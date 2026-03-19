@@ -62,43 +62,25 @@ builder.Services.Configure<FormOptions>(o =>
     o.MemoryBufferThreshold = 1024 * 1024;
 });
 
-const string CorsPolicy = "FrontPolicy";
-if (builder.Environment.IsProduction())
+const string CorsPolicy = "FrontendPolicy";
+builder.Services.AddCors(options =>
 {
-    builder.Services.AddCors(p =>
+    options.AddPolicy(CorsPolicy, policy =>
     {
-        p.AddPolicy(CorsPolicy, policy =>
-        {
-            policy.WithOrigins(
-                "https://arroyosecoservices.vercel.app",
+        policy
+            .WithOrigins(
+                "http://34.58.123.99:4200",
                 "http://localhost:4200",
-                "https://localhost:4200"
-            )
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials()
-            .WithExposedHeaders("Content-Disposition");
-        });
-    });
-}
-else
-{
-    builder.Services.AddCors(p =>
-    {
-        p.AddPolicy(CorsPolicy, policy =>
-        {
-            policy.WithOrigins(
-                "http://localhost:4200",
-                "https://localhost:4200"
+                "http://127.0.0.1:4200",
+                "https://arroyosecoservices.vercel.app"
             )
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials()
             .WithExposedHeaders("Content-Disposition")
             .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
-        });
     });
-}
+});
 
 var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
 string connectionString;
@@ -244,27 +226,6 @@ builder.Services.PostConfigure<EmailOptions>(o =>
 
 var app = builder.Build();
 
-// ✅ FIX 1: OPTIONS handler PRIMERO — antes de todo, incluye PATCH
-app.Use(async (context, next) =>
-{
-    if (context.Request.Method == "OPTIONS")
-    {
-        var origin = context.Request.Headers["Origin"].ToString();
-        if (!string.IsNullOrEmpty(origin))
-        {
-            context.Response.Headers["Access-Control-Allow-Origin"] = origin;
-            context.Response.Headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,PATCH,OPTIONS";
-            context.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization";
-            context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
-            context.Response.Headers["Access-Control-Max-Age"] = "600";
-        }
-        context.Response.StatusCode = 204;
-        await context.Response.CompleteAsync();
-        return;
-    }
-    await next();
-});
-
 // Middleware global de errores
 app.Use(async (ctx, next) =>
 {
@@ -300,6 +261,7 @@ app.UseSwaggerUI();
 if (!app.Environment.IsProduction())
     app.UseHttpsRedirection();
 
+app.UseRouting();
 app.UseCors(CorsPolicy);
 app.UseAuthentication();
 app.UseAuthorization();
