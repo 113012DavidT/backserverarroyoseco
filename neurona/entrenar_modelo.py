@@ -112,7 +112,7 @@ def train_and_save_model() -> None:
     model = _build_model(comentarios, puntuaciones)
 
     train_inputs = {
-        "comentario": np.array([[str(c)] for c in comentarios]),
+        "comentario": tf.constant([[str(c)] for c in comentarios], dtype=tf.string),
         "puntuacion": puntuaciones.reshape(-1, 1),
     }
 
