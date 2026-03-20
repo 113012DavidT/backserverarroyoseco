@@ -16,7 +16,7 @@ modelo = tf.keras.models.load_model(MODEL_PATH)
 
 def _predict_batch(items: list[dict]) -> list[dict]:
     puntuaciones = np.array([[float(item.get("puntuacion", 3))] for item in items], dtype=np.float32)
-    comentarios = np.array([[str(item.get("comentario", ""))] for item in items], dtype=object)
+    comentarios = np.array([[str(item.get("comentario", ""))] for item in items])
 
     pred = modelo.predict({"comentario": comentarios, "puntuacion": puntuaciones}, verbose=0)
     clases = np.argmax(pred, axis=1)

@@ -69,7 +69,7 @@ def _build_model(comentarios: np.ndarray, puntuaciones: np.ndarray) -> tf.keras.
         output_mode="tf_idf",
         standardize="lower_and_strip_punctuation",
     )
-    vectorizer.adapt(tf.data.Dataset.from_tensor_slices(comentarios).batch(32))
+    vectorizer.adapt(list(comentarios.astype(str)))
 
     normalizer = tf.keras.layers.Normalization(axis=-1)
     normalizer.adapt(puntuaciones.reshape(-1, 1))
@@ -112,7 +112,7 @@ def train_and_save_model() -> None:
     model = _build_model(comentarios, puntuaciones)
 
     train_inputs = {
-        "comentario": comentarios.reshape(-1, 1),
+        "comentario": np.array([[str(c)] for c in comentarios]),
         "puntuacion": puntuaciones.reshape(-1, 1),
     }
 
