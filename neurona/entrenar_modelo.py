@@ -1,11 +1,15 @@
 import os
+import pickle
 
 import numpy as np
 import psycopg2
 import tensorflow as tf
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 
 MODEL_PATH = "modelo_reseñas.keras"
+VECTORIZER_PATH = "vectorizer.pkl"
+N_TEXT_FEATURES = 500
 
 
 def _db_config() -> dict:
@@ -60,29 +64,21 @@ def _to_class_labels(puntuaciones: np.ndarray) -> np.ndarray:
     return np.where(puntuaciones <= 2, 0, np.where(puntuaciones == 3, 1, 2)).astype(np.int32)
 
 
-def _build_model(comentarios: np.ndarray, puntuaciones: np.ndarray) -> tf.keras.Model:
-    text_input = tf.keras.Input(shape=(1,), dtype=tf.string, name="comentario")
+def _build_model(n_text_features: int) -> tf.keras.Model:
+    # Only plain float inputs — avoids TextVectorization serialization bugs
+    text_input = tf.keras.Input(shape=(n_text_features,), dtype=tf.float32, name="texto_features")
     score_input = tf.keras.Input(shape=(1,), dtype=tf.float32, name="puntuacion")
 
-    vectorizer = tf.keras.layers.TextVectorization(
-        max_tokens=3000,
-        output_mode="tf_idf",
-        standardize="lower_and_strip_punctuation",
-    )
-    vectorizer.adapt(list(comentarios.astype(str)))
-
-    normalizer = tf.keras.layers.Normalization(axis=-1)
-    normalizer.adapt(puntuaciones.reshape(-1, 1))
-
-    x_text = vectorizer(text_input)
-    x_score = normalizer(score_input)
-    x = tf.keras.layers.Concatenate()([x_text, x_score])
-    x = tf.keras.layers.Dense(32, activation="relu")(x)
+    x = tf.keras.layers.Concatenate()([text_input, score_input])
+    x = tf.keras.layers.Dense(64, activation="relu")(x)
     x = tf.keras.layers.Dropout(0.2)(x)
-    x = tf.keras.layers.Dense(16, activation="relu")(x)
+    x = tf.keras.layers.Dense(32, activation="relu")(x)
     output = tf.keras.layers.Dense(3, activation="softmax", name="clase")(x)
 
-    model = tf.keras.Model(inputs={"comentario": text_input, "puntuacion": score_input}, outputs=output)
+    model = tf.keras.Model(
+        inputs={"texto_features": text_input, "puntuacion": score_input},
+        outputs=output,
+    )
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
         loss="sparse_categorical_crossentropy",
@@ -109,10 +105,16 @@ def train_and_save_model() -> None:
         comentarios = np.concatenate([comentarios, f_comments])
 
     labels = _to_class_labels(puntuaciones)
-    model = _build_model(comentarios, puntuaciones)
+    texts = [str(c) for c in comentarios]
+
+    # Vectorize text with sklearn (serializes reliably via pickle)
+    vectorizer = TfidfVectorizer(max_features=N_TEXT_FEATURES)
+    X_text = vectorizer.fit_transform(texts).toarray().astype(np.float32)
+
+    model = _build_model(X_text.shape[1])
 
     train_inputs = {
-        "comentario": tf.constant([[str(c)] for c in comentarios], dtype=tf.string),
+        "texto_features": X_text,
         "puntuacion": puntuaciones.reshape(-1, 1),
     }
 
@@ -130,6 +132,8 @@ def train_and_save_model() -> None:
     )
 
     model.save(MODEL_PATH)
+    with open(VECTORIZER_PATH, "wb") as f:
+        pickle.dump(vectorizer, f)
     print(f"Modelo guardado en '{MODEL_PATH}' con {len(labels)} muestras ({source}).")
 
 

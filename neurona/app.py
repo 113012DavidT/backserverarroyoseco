@@ -1,24 +1,28 @@
 import os
+import pickle
 
 from flask import Flask, request, jsonify
 import tensorflow as tf
 import numpy as np
 
-from entrenar_modelo import MODEL_PATH, train_and_save_model
+from entrenar_modelo import MODEL_PATH, VECTORIZER_PATH, train_and_save_model
 
 app = Flask(__name__)
 
-if not os.path.exists(MODEL_PATH):
+if not os.path.exists(MODEL_PATH) or not os.path.exists(VECTORIZER_PATH):
     train_and_save_model()
 
 modelo = tf.keras.models.load_model(MODEL_PATH)
+with open(VECTORIZER_PATH, "rb") as _f:
+    vectorizer = pickle.load(_f)
 
 
 def _predict_batch(items: list[dict]) -> list[dict]:
+    texts = [str(item.get("comentario", "")) for item in items]
     puntuaciones = np.array([[float(item.get("puntuacion", 3))] for item in items], dtype=np.float32)
-    comentarios = tf.constant([[str(item.get("comentario", ""))] for item in items], dtype=tf.string)
+    X_text = vectorizer.transform(texts).toarray().astype(np.float32)
 
-    pred = modelo.predict({"comentario": comentarios, "puntuacion": puntuaciones}, verbose=0)
+    pred = modelo.predict({"texto_features": X_text, "puntuacion": puntuaciones}, verbose=0)
     clases = np.argmax(pred, axis=1)
     confidences = np.max(pred, axis=1)
 
