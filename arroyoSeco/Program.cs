@@ -6,6 +6,9 @@ using Microsoft.IdentityModel.Tokens;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.AspNetCore.ResponseCompression;
+using System.IO.Compression;
 using System.Text;
 using arroyoSeco.Infrastructure.Data;
 using arroyoSeco.Infrastructure.Auth;
@@ -41,6 +44,27 @@ else
 }
 
 builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[]
+    {
+        "application/manifest+json"
+    });
+});
+
+builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest;
+});
+
+builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest;
+});
 
 AppDomain.CurrentDomain.UnhandledException += (s, e) =>
     Console.WriteLine("UNHANDLED: " + e.ExceptionObject);
@@ -267,6 +291,35 @@ var comprobantesPath = storageOptions.ComprobantesPath;
 
 if (string.IsNullOrEmpty(comprobantesPath) || !Path.IsPathRooted(comprobantesPath))
     comprobantesPath = Path.Combine(Path.GetTempPath(), "arroyoseco-comprobantes");
+
+var contentTypeProvider = new FileExtensionContentTypeProvider();
+contentTypeProvider.Mappings[".webmanifest"] = "application/manifest+json";
+
+app.UseResponseCompression();
+
+app.UseDefaultFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    ContentTypeProvider = contentTypeProvider,
+    OnPrepareResponse = ctx =>
+    {
+        var fileName = Path.GetFileName(ctx.File.Name);
+        var requestPath = ctx.Context.Request.Path.Value ?? string.Empty;
+
+        if (fileName.Equals("sw.js", StringComparison.OrdinalIgnoreCase) ||
+            fileName.Equals("manifest.webmanifest", StringComparison.OrdinalIgnoreCase) ||
+            fileName.Equals("index.html", StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.Context.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+            return;
+        }
+
+        if (requestPath.StartsWith("/publica/gastronomia/", StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.Context.Response.Headers["Cache-Control"] = "public, max-age=86400, must-revalidate";
+        }
+    }
+});
 
 Directory.CreateDirectory(comprobantesPath);
 app.UseStaticFiles(new StaticFileOptions

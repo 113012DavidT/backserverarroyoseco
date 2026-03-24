@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Arroyo Seco Gastronomia</title>
+  <desc id="desc">Icono de plato y cubiertos</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f766e"/>
+      <stop offset="100%" stop-color="#0ea5e9"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="130" fill="#f8fafc" opacity="0.94"/>
+  <path d="M200 170v86c0 18 14 32 32 32h14v64h20v-64h14c18 0 32-14 32-32v-86h-22v82c0 6-4 10-10 10h-60c-6 0-10-4-10-10v-82z" fill="#0f172a"/>
+  <rect x="313" y="160" width="22" height="192" rx="11" fill="#0f172a"/>
+  <rect x="338" y="160" width="20" height="52" rx="10" fill="#0f172a"/>
+</svg>

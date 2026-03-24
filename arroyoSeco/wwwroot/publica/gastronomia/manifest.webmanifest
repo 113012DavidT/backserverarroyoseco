@@ -1,0 +1,41 @@
+{
+  "id": "/publica/gastronomia/",
+  "name": "Arroyo Seco Gastronomia",
+  "short_name": "Gastronomia",
+  "description": "Explora restaurantes y consulta disponibilidad con cache offline.",
+  "lang": "es-MX",
+  "start_url": "/publica/gastronomia/",
+  "scope": "/publica/gastronomia/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ecfeff",
+  "theme_color": "#0f766e",
+  "icons": [
+    {
+      "src": "/publica/gastronomia/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/publica/gastronomia/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/publica/gastronomia/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/publica/gastronomia/images/screenshot-home.svg",
+      "sizes": "1024x768",
+      "type": "image/svg+xml",
+      "form_factor": "wide"
+    }
+  ]
+}

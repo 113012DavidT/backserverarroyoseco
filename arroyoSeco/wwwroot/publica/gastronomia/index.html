@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f766e">
+  <meta name="description" content="Busca restaurantes en Arroyo Seco, guarda datos offline y reserva mas rapido.">
+  <link rel="manifest" href="/publica/gastronomia/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/publica/gastronomia/icons/icon-192.png">
+  <link rel="stylesheet" href="/publica/gastronomia/styles.css">
+  <title>Arroyo Seco Gastronomia</title>
+</head>
+<body>
+  <div class="ambient-shape ambient-shape-left"></div>
+  <div class="ambient-shape ambient-shape-right"></div>
+
+  <header class="hero">
+    <p class="eyebrow">Arroyo Seco</p>
+    <h1>Descubre gastronomia local sin esperar de mas</h1>
+    <p class="subtitle">PWA con carga rapida, cache inteligente y soporte offline parcial.</p>
+  </header>
+
+  <main class="card">
+    <form id="search-form" class="search-grid" autocomplete="off">
+      <label>
+        Ubicacion
+        <input id="filtro-ubicacion" name="ubicacion" placeholder="ej. centro" />
+      </label>
+
+      <label>
+        Personas
+        <input id="filtro-personas" name="personas" type="number" min="1" max="20" value="1" />
+      </label>
+
+      <label>
+        Fecha
+        <input id="filtro-fecha" name="fecha" type="date" />
+      </label>
+
+      <button type="submit" class="btn-primary">Buscar</button>
+    </form>
+
+    <section class="status-row">
+      <span id="app-status">Inicializando...</span>
+      <button id="install-btn" class="btn-ghost" type="button" hidden>Instalar app</button>
+    </section>
+
+    <section>
+      <ul id="resultados" class="result-list"></ul>
+      <p id="vacio" class="empty" hidden>No hay resultados para el filtro actual.</p>
+      <div id="loading" class="loading" aria-live="polite">
+        <div class="spinner"></div>
+        <span>Cargando establecimientos...</span>
+      </div>
+    </section>
+  </main>
+
+  <footer class="stats">
+    <div><strong id="stat-total">0</strong><span>restaurantes</span></div>
+    <div><strong id="stat-cache">0%</strong><span>cache hit</span></div>
+    <div><strong>PWA</strong><span>lista para instalar</span></div>
+  </footer>
+
+  <script src="/publica/gastronomia/app.js" defer></script>
+</body>
+</html>
