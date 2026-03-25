@@ -22,18 +22,20 @@ public class AlojamientosController : ControllerBase
         _current = current;
     }
 
-    // P�blico
+    // Público
     [AllowAnonymous]
     [HttpGet]
+    [ResponseCache(Duration = 60, Location = ResponseCacheLocation.Any, VaryByHeader = "Accept")]
     public async Task<ActionResult<IEnumerable<AlojamientoEntity>>> List(CancellationToken ct)
         => Ok(await _db.Alojamientos
             .Include(a => a.Fotos)
             .AsNoTracking()
             .ToListAsync(ct));
 
-    // P�blico
+    // Público
     [AllowAnonymous]
     [HttpGet("{id:int}")]
+    [ResponseCache(Duration = 60, Location = ResponseCacheLocation.Any, VaryByHeader = "Accept")]
     public async Task<ActionResult<AlojamientoEntity>> GetById(int id, CancellationToken ct)
     {
         var a = await _db.Alojamientos

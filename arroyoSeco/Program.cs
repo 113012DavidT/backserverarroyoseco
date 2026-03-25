@@ -193,6 +193,8 @@ builder.Services.AddControllers()
         o.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
     });
 
+builder.Services.AddResponseCaching();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -296,6 +298,7 @@ var contentTypeProvider = new FileExtensionContentTypeProvider();
 contentTypeProvider.Mappings[".webmanifest"] = "application/manifest+json";
 
 app.UseResponseCompression();
+app.UseResponseCaching();
 
 app.UseDefaultFiles();
 app.UseStaticFiles(new StaticFileOptions

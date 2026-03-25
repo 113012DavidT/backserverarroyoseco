@@ -96,6 +96,7 @@ public class GastronomiasController : ControllerBase
 
     [AllowAnonymous]
     [HttpGet]
+    [ResponseCache(Duration = 60, Location = ResponseCacheLocation.Any, VaryByHeader = "Accept")]
     public async Task<ActionResult<IEnumerable<EstablecimientoEntity>>> List(CancellationToken ct)
         => Ok(await _db.Establecimientos
             .Include(e => e.Menus)
@@ -105,6 +106,7 @@ public class GastronomiasController : ControllerBase
 
     [AllowAnonymous]
     [HttpGet("ranking")]
+    [ResponseCache(Duration = 120, Location = ResponseCacheLocation.Any, VaryByHeader = "Accept")]
     public async Task<ActionResult<IEnumerable<GastronomiaRankingDto>>> ListRanking(CancellationToken ct)
     {
         var ranked = await BuildRankingAsync(ct);
